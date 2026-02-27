@@ -36,7 +36,7 @@ app.use(cors(corsOptions));
 
 // ✅ FIX 3: Explicit OPTIONS handler for every route — must come AFTER
 // app.use(cors()) so the CORS headers are already attached before we reply.
-app.options('*', cors(corsOptions));
+app.options('/(.*)', cors(corsOptions));
 
 // ✅ FIX 4: Body parsers come AFTER CORS but BEFORE routes.
 // In the original code express.json() was registered after the routes,
