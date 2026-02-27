@@ -7,11 +7,9 @@ exports.createContact = async (req, res) => {
     const {
       firstName,
       lastName,
-      companyName,
       email,
       phoneNumber,
       selectService,
-      how,
       message,
     } = req.body;
 
@@ -19,11 +17,9 @@ exports.createContact = async (req, res) => {
     if (
       !firstName ||
       !lastName ||
-      !companyName ||
       !email ||
       !phoneNumber ||
       !selectService ||
-      !how ||
       !message
     ) {
       return res.status(400).json({
@@ -33,19 +29,11 @@ exports.createContact = async (req, res) => {
     }
 
     // check duplicate email
-    const existing = await Contact.findOne({ email });
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: "Contact with this email already exists",
-      });
-    }
 
     // create
     const contact = await Contact.create({
       firstName,
       lastName,
-      companyName,
       email,
       phoneNumber,
       selectService,
