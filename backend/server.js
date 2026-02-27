@@ -10,6 +10,9 @@ connectDB();
 app.use(express.json());
 // Routes
 app.use('/api/contacts', contactRoutes);
+app.get('/', (req, res) => {
+    res.send('Welcome to the DeZinHouse Contact API');
+});
 // Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
