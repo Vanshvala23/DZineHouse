@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { faqs } from '../data/data';
 import toast, { Toaster } from 'react-hot-toast';
@@ -61,37 +61,53 @@ const COUNTRY_CODES = [
   { code: 'NZ', flag: '🇳🇿', dial: '+64',  name: 'New Zealand',    maxLen: 9  },
 ];
 
-const EMPTY_FORM = {
-  firstName: '', lastName: '', email: '', phone: '', service: '', how: '', message: ''
-};
-
 export default function ContactPage() {
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const incomingService = searchParams.get('service') || searchParams.get('package') || '';
-  const incominghow = searchParams.get('how') || '';
 
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]);
+  // ✅ FIX 1: Derive URL params once using a ref so they never change identity
+  // between renders, preventing the useEffect from re-firing endlessly.
+  const initialParamsRef = useRef(null);
+  if (initialParamsRef.current === null) {
+    const searchParams = new URLSearchParams(location.search);
+    initialParamsRef.current = {
+      service: searchParams.get('service') || searchParams.get('package') || '',
+      how:     searchParams.get('how') || '',
+    };
+  }
+  const { service: incomingService, how: incominghow } = initialParamsRef.current;
 
-  const [formData, setFormData] = useState({
-    ...EMPTY_FORM,
+  // ✅ FIX 2: Build the empty-form template with incoming params baked in,
+  // so resetting after submit never drops them and never triggers the effect.
+  const emptyForm = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
     service: incomingService,
     how: incominghow,
-  });
+    message: '',
+  };
 
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]);
+  const [formData, setFormData]               = useState(emptyForm);
+  const [isSubmitting, setIsSubmitting]       = useState(false);
+
+  // ✅ FIX 3: Keep the effect but guard it so it only runs when the URL
+  // params genuinely change (navigating to a different service link).
   useEffect(() => {
-    if (incomingService) setFormData(prev => ({ ...prev, service: incomingService }));
-    if (incominghow)     setFormData(prev => ({ ...prev, how: incominghow }));
+    setFormData(prev => ({
+      ...prev,
+      service: incomingService || prev.service,
+      how:     incominghow     || prev.how,
+    }));
   }, [incomingService, incominghow]);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
+    setFormData(prev => ({ ...prev, [e.target.id]: e.target.value }));
   };
 
   const handlePhoneChange = (e) => {
-    const raw = e.target.value.replace(/\D/g, '');
+    const raw     = e.target.value.replace(/\D/g, '');
     const trimmed = raw.slice(0, selectedCountry.maxLen);
     setFormData(prev => ({ ...prev, phone: trimmed }));
   };
@@ -106,6 +122,10 @@ export default function ContactPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // ✅ FIX 4: Guard against double-submit (e.g. fast double-click)
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
 
     const payload = {
@@ -113,38 +133,43 @@ export default function ContactPage() {
       phone: formData.phone ? `${selectedCountry.dial}${formData.phone}` : '',
     };
 
-    // toast.promise handles loading / success / error states automatically
-    await toast.promise(
-      axios.post('/api/contact', payload), // 🔁 replace with your real endpoint
-      {
-        loading: 'Sending your message...',
-        success: () => {
-          setFormData(EMPTY_FORM);
-          return '🎉 Message sent! We\'ll get back to you within 24 hours.';
+    try {
+      await toast.promise(
+        axios.post('https://d-zine-house.vercel.app/api/contacts/create', payload),
+        {
+          loading: 'Sending your message...',
+          success: () => {
+            // ✅ FIX 5: Reset to emptyForm (which already contains incomingService/how),
+            // so the useEffect has nothing new to set and does NOT re-run a state update.
+            setFormData(emptyForm);
+            return "🎉 Message sent! We'll get back to you within 24 hours.";
+          },
+          error: (err) => {
+            const msg = err?.response?.data?.message;
+            return msg || '❌ Something went wrong. Please try again or contact us directly.';
+          },
         },
-        error: (err) => {
-          const msg = err?.response?.data?.message;
-          return msg || '❌ Something went wrong. Please try again or contact us directly.';
-        },
-      },
-      {
-        style: {
-          minWidth: '300px',
-          fontWeight: '600',
-          borderRadius: '12px',
-          padding: '14px 18px',
-        },
-        success: {
-          duration: 5000,
-          iconTheme: { primary: '#0d9488', secondary: '#fff' },
-        },
-        error: {
-          duration: 6000,
-        },
-      }
-    );
-
-    setIsSubmitting(false);
+        {
+          style: {
+            minWidth: '300px',
+            fontWeight: '600',
+            borderRadius: '12px',
+            padding: '14px 18px',
+          },
+          success: {
+            duration: 5000,
+            iconTheme: { primary: '#0d9488', secondary: '#fff' },
+          },
+          error: {
+            duration: 6000,
+          },
+        }
+      );
+    } finally {
+      // ✅ FIX 6: Always reset isSubmitting in a finally block so a network
+      // error can never leave the button permanently disabled.
+      setIsSubmitting(false);
+    }
   };
 
   return (
