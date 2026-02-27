@@ -7,8 +7,19 @@ const contactRoutes=require('./routes/contactRoutes');
 dotenv.config();
 // Connect to MongoDB
 connectDB();
-// CORS Middleware
-app.use(cors());
+// CORS Middleware (FIXED)
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://d-zine-house.vercel.app"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
+
+// ✅ IMPORTANT: handle preflight explicitly
+app.options('*', cors());
 // Middleware
 app.use(express.json());
 // Routes
